@@ -2,6 +2,7 @@
 const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['xlsx'],
+    serverActionsBodySizeLimit: '25mb',
   },
 };
 

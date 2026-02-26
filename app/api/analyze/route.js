@@ -111,10 +111,6 @@ function buildRyboMessage(anderson, type, fileName, data) {
   return `ANDERSON'S ANALYSIS:\n${andersonJSON}\n\nORIGINAL DATA from "${fileName}":\n- ${totalRows} rows, ${totalCols} columns\n- Headers: ${headerRow}\n- Sample (first 50 rows):\n${sampleRows}\n\nGive me your take.`;
 }
 
-export const config = {
-  api: { bodyParser: { sizeLimit: '25mb' } },
-};
-
 export async function POST(request) {
   try {
     const body = await request.json();
