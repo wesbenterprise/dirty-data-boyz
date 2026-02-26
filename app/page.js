@@ -44,20 +44,28 @@ function parseCSV(file) {
 
 function parsePDF(file) {
   return new Promise((resolve, reject) => {
+    if (!file || file.size === 0) return reject(new Error('PDF file is empty (0 bytes)'));
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        // Use DataURL approach — most reliable for all file sizes
-        const dataUrl = e.target.result;
-        const base64 = dataUrl.split(',')[1] || '';
-        if (!base64) throw new Error('Failed to encode PDF');
+        const arrayBuffer = e.target.result;
+        const bytes = new Uint8Array(arrayBuffer);
+        if (bytes.length === 0) throw new Error('PDF read as empty buffer');
+        // Convert to base64 in chunks to avoid call stack limits
+        const chunks = [];
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize)));
+        }
+        const base64 = btoa(chunks.join(''));
+        if (!base64) throw new Error('Base64 encoding produced empty result');
         resolve({ base64, isPDF: true });
       } catch (err) {
-        reject(err);
+        reject(new Error('Failed to encode PDF: ' + err.message));
       }
     };
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
+    reader.onerror = () => reject(new Error('Failed to read PDF file'));
+    reader.readAsArrayBuffer(file);
   });
 }
 
