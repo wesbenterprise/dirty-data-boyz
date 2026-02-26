@@ -171,7 +171,7 @@ export default function Home() {
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMsg, setStatusMsg] = useState('');
-  const [showResults, setShowResults] = useState([false, false, false]);
+  const [showResults, setShowResults] = useState(Array(8).fill(false));
   const [analysis, setAnalysis] = useState(null);
   const [fileName, setFileName] = useState('');
   const [history, setHistory] = useState([]);
@@ -189,13 +189,13 @@ export default function Home() {
 
   const processFile = useCallback(async (file) => {
     setError(null); setView('analyzing'); setProgress(0);
-    setStatusMsg('Parsing file...'); setFileName(file.name);
+    setStatusMsg('>> Parsing file structure...'); setFileName(file.name);
     const ext = file.name.split('.').pop().toLowerCase();
 
     try {
       setProgress(10);
       const parsed = await parseFile(file);
-      setProgress(25); setStatusMsg('Sending to Claude for analysis...');
+      setProgress(25); setStatusMsg('>> Anderson is running the numbers...');
 
       const fileInfo = {
         fileName: file.name,
@@ -209,7 +209,7 @@ export default function Home() {
       const progressInterval = setInterval(() => {
         setProgress((p) => { if (p >= 85) { clearInterval(progressInterval); return 85; } return p + Math.random() * 4 + 1; });
       }, 300);
-      setStatusMsg('Claude is reviewing your data...');
+      setStatusMsg('>> Anderson is looking for anomalies...');
 
       const apiBody = parsed.isPDF
         ? { type: 'pdf', fileName: file.name, data: { base64: parsed.base64 } }
@@ -224,6 +224,10 @@ export default function Home() {
       }
 
       const result = await res.json();
+      const anderson = result.anderson || result;
+      const rybo = result.rybo || null;
+      const analysisVersion = result.version || result.analysis_version || (rybo ? 2 : 1);
+
       setProgress(90); setStatusMsg('Saving to database...');
 
       const { data: saved, error: saveErr } = await supabase.from('analyses').insert({
@@ -232,17 +236,20 @@ export default function Home() {
         file_size: fileInfo.fileSize,
         row_count: result.row_count ?? fileInfo.rowCount,
         col_count: result.col_count ?? fileInfo.colCount,
-        the_good: result.the_good || [],
-        the_bad: result.the_bad || [],
-        the_dirty: result.the_dirty || [],
-        raw_summary: result.summary || '',
+        the_good: anderson.the_good || [],
+        the_bad: anderson.the_bad || [],
+        the_dirty: anderson.the_dirty || [],
+        raw_summary: anderson.summary || '',
+        rybo_co_signs: rybo?.co_signs || [],
+        rybo_watch_outs: rybo?.watch_outs || [],
+        rybo_bottom_line: rybo?.bottom_line || '',
+        analysis_version: analysisVersion,
       }).select().single();
 
       if (saveErr) console.error('Save error:', saveErr);
       setProgress(100);
 
       setAnalysis({
-        ...result,
         id: saved?.id,
         fileName: file.name,
         fileSize: fileInfo.fileSize,
@@ -251,13 +258,28 @@ export default function Home() {
         colCount: result.col_count ?? fileInfo.colCount,
         timestamp: formatDate(new Date().toISOString()),
         truncated: fileInfo.truncated,
+        summary: anderson.summary || '',
+        the_good: anderson.the_good || [],
+        the_bad: anderson.the_bad || [],
+        the_dirty: anderson.the_dirty || [],
+        rybo: rybo ? {
+          co_signs: rybo.co_signs || [],
+          watch_outs: rybo.watch_outs || [],
+          bottom_line: rybo.bottom_line || '',
+        } : null,
+        analysisVersion,
       });
 
       setTimeout(() => {
         setView('results');
-        setTimeout(() => setShowResults([true, false, false]), 200);
-        setTimeout(() => setShowResults([true, true, false]), 600);
-        setTimeout(() => setShowResults([true, true, true]), 1000);
+        setTimeout(() => setShowResults([true, false, false, false, false, false, false, false]), 200);
+        setTimeout(() => setShowResults([true, true, false, false, false, false, false, false]), 400);
+        setTimeout(() => setShowResults([true, true, true, false, false, false, false, false]), 700);
+        setTimeout(() => setShowResults([true, true, true, true, false, false, false, false]), 1000);
+        setTimeout(() => setShowResults([true, true, true, true, true, false, false, false]), 1300);
+        setTimeout(() => setShowResults([true, true, true, true, true, true, false, false]), 1500);
+        setTimeout(() => setShowResults([true, true, true, true, true, true, true, false]), 1800);
+        setTimeout(() => setShowResults([true, true, true, true, true, true, true, true]), 2100);
       }, 400);
 
       loadHistory();
@@ -268,11 +290,37 @@ export default function Home() {
   const handleSelect = useCallback((e) => { const f = e.target.files?.[0]; if (f) processFile(f); }, [processFile]);
 
   const viewHistoryItem = useCallback((item) => {
-    setAnalysis({ the_good: item.the_good || [], the_bad: item.the_bad || [], the_dirty: item.the_dirty || [], summary: item.raw_summary, id: item.id, fileName: item.file_name, fileSize: item.file_size, fileType: item.file_type, rowCount: item.row_count, colCount: item.col_count, timestamp: formatDate(item.created_at) });
+    const analysisVersion = item.analysis_version ?? 1;
+    const rybo = analysisVersion >= 2 ? {
+      co_signs: item.rybo_co_signs || [],
+      watch_outs: item.rybo_watch_outs || [],
+      bottom_line: item.rybo_bottom_line || '',
+    } : null;
+
+    setAnalysis({
+      the_good: item.the_good || [],
+      the_bad: item.the_bad || [],
+      the_dirty: item.the_dirty || [],
+      summary: item.raw_summary,
+      rybo,
+      analysisVersion,
+      id: item.id,
+      fileName: item.file_name,
+      fileSize: item.file_size,
+      fileType: item.file_type,
+      rowCount: item.row_count,
+      colCount: item.col_count,
+      timestamp: formatDate(item.created_at),
+    });
     setView('results');
-    setTimeout(() => setShowResults([true, false, false]), 200);
-    setTimeout(() => setShowResults([true, true, false]), 600);
-    setTimeout(() => setShowResults([true, true, true]), 1000);
+    setTimeout(() => setShowResults([true, false, false, false, false, false, false, false]), 200);
+    setTimeout(() => setShowResults([true, true, false, false, false, false, false, false]), 400);
+    setTimeout(() => setShowResults([true, true, true, false, false, false, false, false]), 700);
+    setTimeout(() => setShowResults([true, true, true, true, false, false, false, false]), 1000);
+    setTimeout(() => setShowResults([true, true, true, true, true, false, false, false]), 1300);
+    setTimeout(() => setShowResults([true, true, true, true, true, true, false, false]), 1500);
+    setTimeout(() => setShowResults([true, true, true, true, true, true, true, false]), 1800);
+    setTimeout(() => setShowResults([true, true, true, true, true, true, true, true]), 2100);
   }, []);
 
   const handleDelete = useCallback(async (id, e) => {
@@ -282,9 +330,9 @@ export default function Home() {
     if (!error) setHistory((h) => h.filter((x) => x.id !== id));
   }, []);
 
-  const reset = () => { setView('upload'); setProgress(0); setShowResults([false, false, false]); setError(null); if (fileRef.current) fileRef.current.value = ''; };
+  const reset = () => { setView('upload'); setProgress(0); setShowResults(Array(8).fill(false)); setError(null); if (fileRef.current) fileRef.current.value = ''; };
 
-  const progMsg = progress < 20 ? '>> Parsing file structure...' : progress < 40 ? '>> Extracting data...' : progress < 65 ? '>> Claude is scanning for anomalies...' : progress < 85 ? '>> Generating insights...' : '>> Compiling the down & dirty...';
+  const progMsg = progress < 15 ? '>> Parsing file structure...' : progress < 30 ? '>> Extracting data...' : progress < 50 ? '>> Anderson is running the numbers...' : progress < 65 ? '>> Anderson is looking for anomalies...' : progress < 75 ? '>> Rybo is reviewing Anderson\'s work...' : progress < 90 ? '>> Rybo is adding his two cents...' : '>> Compiling the down & dirty...';
 
   return (
     <>
@@ -422,8 +470,19 @@ export default function Home() {
                 <GlitchText style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 16, color: NY, textShadow: `0 0 20px ${NY}44`, letterSpacing: 3 }}>THE DOWN &amp; DIRTY</GlitchText>
               </div>
 
-              {/* THE GOOD */}
+              {/* ANDERSON HEADER */}
               <div style={{ animation: showResults[0] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[0] ? 1 : 0, marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #00F0FF, #39FF14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: '0 0 15px #00F0FF44' }}>📊</div>
+                  <div>
+                    <div style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 16, fontWeight: 900, color: '#00F0FF', letterSpacing: 2 }}>ANDERSON'S ANALYSIS</div>
+                    <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: '#39FF14', letterSpacing: 3 }}>THE QUANT LENS</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* THE GOOD */}
+              <div style={{ animation: showResults[1] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[1] ? 1 : 0, marginBottom: 24 }}>
                 <NeonCard color={NG}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                     <span style={{ fontSize: 22 }}>✅</span>
@@ -441,7 +500,7 @@ export default function Home() {
               </div>
 
               {/* THE BAD */}
-              <div style={{ animation: showResults[1] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[1] ? 1 : 0, marginBottom: 24 }}>
+              <div style={{ animation: showResults[2] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[2] ? 1 : 0, marginBottom: 24 }}>
                 <NeonCard color={NP}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                     <span style={{ fontSize: 22 }}>⚠️</span>
@@ -459,8 +518,8 @@ export default function Home() {
               </div>
 
               {/* THE DIRTY */}
-              <div style={{ animation: showResults[2] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[2] ? 1 : 0, marginBottom: 24 }}>
-                <NeonCard color={NY} style={{ animation: showResults[2] ? 'rainbowBorder 4s linear infinite' : 'none' }}>
+              <div style={{ animation: showResults[3] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[3] ? 1 : 0, marginBottom: 24 }}>
+                <NeonCard color={NY} style={{ animation: showResults[3] ? 'rainbowBorder 4s linear infinite' : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                     <span style={{ fontSize: 22 }}>🔍</span>
                     <h3 style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 18, fontWeight: 900, color: NY, textShadow: `0 0 10px ${NY}44` }}>THE DIRTY</h3>
@@ -487,6 +546,72 @@ export default function Home() {
                   </div>
                 </NeonCard>
               </div>
+
+              {analysis.rybo && (
+                <>
+                  {/* RYBO HEADER */}
+                  <div style={{ animation: showResults[4] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[4] ? 1 : 0, marginBottom: 24 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'linear-gradient(135deg, #BF40FF, #FF2D95)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, boxShadow: '0 0 15px #BF40FF44' }}>🎯</div>
+                      <div>
+                        <div style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 16, fontWeight: 900, color: '#BF40FF', letterSpacing: 2 }}>RYBO'S TAKE</div>
+                        <div style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: '#FF2D95', letterSpacing: 3 }}>THE PRAGMATIST</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CO-SIGNS */}
+                  <div style={{ animation: showResults[5] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[5] ? 1 : 0, marginBottom: 24 }}>
+                    <NeonCard color={NC}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                        <span style={{ fontSize: 22 }}>👊</span>
+                        <h3 style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 18, fontWeight: 900, color: NC, textShadow: `0 0 10px ${NC}44` }}>CO-SIGNS</h3>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {(analysis.rybo.co_signs || []).map((item, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 16px', background: `${NC}08`, borderRadius: 6, borderLeft: `3px solid ${NC}66` }}>
+                            <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 9, color: NC, marginTop: 4, flexShrink: 0 }}>[{String(i + 1).padStart(2, '0')}]</span>
+                            <span style={{ fontSize: 15, lineHeight: 1.5, color: '#C8C8E0' }}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </NeonCard>
+                  </div>
+
+                  {/* WATCH OUTS */}
+                  <div style={{ animation: showResults[6] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[6] ? 1 : 0, marginBottom: 24 }}>
+                    <NeonCard color={NPU}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                        <span style={{ fontSize: 22 }}>👀</span>
+                        <h3 style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 18, fontWeight: 900, color: NPU, textShadow: `0 0 10px ${NPU}44` }}>WATCH OUTS</h3>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {(analysis.rybo.watch_outs || []).length === 0 && (
+                          <div style={{ padding: '12px 16px', background: `${NPU}08`, borderRadius: 6, borderLeft: `3px solid ${NPU}66`, color: '#C8C8E0', fontSize: 15 }}>No major misses flagged.</div>
+                        )}
+                        {(analysis.rybo.watch_outs || []).map((item, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 16px', background: `${NPU}08`, borderRadius: 6, borderLeft: `3px solid ${NPU}66` }}>
+                            <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 9, color: NPU, marginTop: 4, flexShrink: 0 }}>[{String(i + 1).padStart(2, '0')}]</span>
+                            <span style={{ fontSize: 15, lineHeight: 1.5, color: '#C8C8E0' }}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </NeonCard>
+                  </div>
+
+                  {/* BOTTOM LINE */}
+                  <div style={{ animation: showResults[7] ? 'slideUp 0.6s ease-out' : 'none', opacity: showResults[7] ? 1 : 0, marginBottom: 24 }}>
+                    <div style={{ background: DC, borderRadius: 8, padding: '22px 26px', position: 'relative', boxShadow: `0 0 20px ${NPU}15, inset 0 0 20px ${NPU}05`, border: '1px solid transparent', backgroundImage: `linear-gradient(${DC}, ${DC}), linear-gradient(135deg, ${NP}, ${NPU})`, backgroundOrigin: 'border-box', backgroundClip: 'padding-box, border-box' }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${NP}, ${NPU}, transparent)` }} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                        <span style={{ fontSize: 22 }}>💬</span>
+                        <h3 style={{ fontFamily: "'Orbitron', sans-serif", fontSize: 18, fontWeight: 900, color: NP, textShadow: `0 0 10px ${NP}44` }}>BOTTOM LINE</h3>
+                      </div>
+                      <div style={{ fontSize: 16, lineHeight: 1.6, color: '#D8D8F0' }}>{analysis.rybo.bottom_line}</div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -514,7 +639,7 @@ export default function Home() {
           )}
 
           <div style={{ textAlign: 'center', padding: '40px 0 24px', fontFamily: "'Share Tech Mono', monospace", fontSize: 11, color: '#444466', borderTop: `1px solid ${NPU}11`, marginTop: 40 }}>
-            DIRTY DATA BOYZ™ • BARNETT FAMILY PARTNERS • v1.0
+            DIRTY DATA BOYZ™ • BARNETT FAMILY PARTNERS • v2.0
           </div>
         </div>
       </div>

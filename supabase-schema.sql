@@ -9,10 +9,17 @@ CREATE TABLE analyses (
   file_size TEXT,
   row_count INTEGER,
   col_count INTEGER,
+  -- Anderson
   the_good JSONB DEFAULT '[]'::jsonb,
   the_bad JSONB DEFAULT '[]'::jsonb,
   the_dirty JSONB DEFAULT '[]'::jsonb,
   raw_summary TEXT,
+  -- Rybo
+  rybo_co_signs JSONB DEFAULT '[]'::jsonb,
+  rybo_watch_outs JSONB DEFAULT '[]'::jsonb,
+  rybo_bottom_line TEXT,
+  -- Versioning
+  analysis_version INTEGER DEFAULT 1,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
