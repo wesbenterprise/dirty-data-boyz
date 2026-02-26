@@ -46,11 +46,18 @@ function parsePDF(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-      const base64 = btoa(new Uint8Array(e.target.result).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-      resolve({ base64, isPDF: true });
+      try {
+        // Use DataURL approach — most reliable for all file sizes
+        const dataUrl = e.target.result;
+        const base64 = dataUrl.split(',')[1] || '';
+        if (!base64) throw new Error('Failed to encode PDF');
+        resolve({ base64, isPDF: true });
+      } catch (err) {
+        reject(err);
+      }
     };
     reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsArrayBuffer(file);
+    reader.readAsDataURL(file);
   });
 }
 
